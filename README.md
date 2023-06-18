@@ -1,20 +1,29 @@
-# ZUniswapV2, a clone of UniswapV2 made in educational purposes
+# Uniswap-V2
 
-## Using this repo
+## IDEAs
 
-1. `git clone git@github.com:Jeiwan/zuniswapv2.git`
-1. Ensure you have installed Rust and Cargo: [Install Rust](https://www.rust-lang.org/tools/install)
-1. Install Foundry:
-   `cargo install --git https://github.com/gakonst/foundry --bin forge --locked`
-1. Install dependency contracts:
-   `git submodule update --init --recursive`
-1. Run tests:
-   `forge test`
+1. 没有流动性就无法进行交易。
 
-## Blog posts
+## Q&A
 
-1. [Part 1](https://jeiwan.net/posts/programming-defi-uniswapv2-1/), architecture of UniswapV2, adding liquidity, first tests in Solidity, removing liquidity.
-1. [Part 2](https://jeiwan.net/posts/programming-defi-uniswapv2-2/), tokens swapping, re-entrancy attacks and protection,
-   price oracle, integer overflow and underflow, safe transfer.
-1. [Part 3](https://jeiwan.net/posts/programming-defi-uniswapv2-3/), factory contract, CREATE2 opcode, Router contract, Library contract
-1. [Part 4](https://jeiwan.net/posts/programming-defi-uniswapv2-4/), LP-tokens burning bug, liquidity removal, output amount calculation, swapExactTokensForTokens, swapTokensForExactTokens, fixing swap fee bug, flash loans, fixing re-entrancy vulnerability, protocol fees
+### Section 1
+
+Q：Uniswap V2 的核心合约是什么？UniswapV2Pair 合约与 Exchange 合约的区别是什么？
+A：1.Uniswap V2 的核心合约是UniswapV2Pair。"Pair"和"Pool"是可以互换使用的术语，它们指的是同一个合约 - UniswapV2Pair 合约。该合约的主要目的是接收用户的 token ，并使用累积的 token 储备进行交换。这就是为什么它被称为 Pool 合约。每个 UniswapV2Pair 合约只能汇集一对 token ，并且只允许在这两种 token 之间进行交换 - 这就是为什么它被称为"pair"的原因。2. Exchange 合约汇集的一种 token 和 ether，UniswapV2Pair 汇集的是一对 token。
+
+Q：Uniswap V2 的 Core 合约部分主要是什么内容？
+A：1.UniswapV2ERC20 ， 一个扩展的ERC20实现，用于LP代币。它还实现了EIP-2612以支持链下转账的批准。2.UniswapV2Factory - 类似于V1，这是一个工厂合约，用于创建配对合约并作为其注册表。注册表使用 create2 来生成配对地址 - 我们将详细了解其工作原理。3.UniswapV2Pair - 主要合约负责核心逻辑。值得注意的是，工厂只允许创建唯一的交易对，以避免流动性的稀释。
+
+Q：Uniswap V2 的 辅助合约部分主要是什么内容？
+A：periphery 存储库包含多个合约，使得使用Uniswap变得更加便捷。其中之一是 UniswapV2Router ，它是Uniswap用户界面以及其他基于Uniswap的网络和去中心化应用的主要入口。该合约的接口与Uniswap V1中的交易合约非常相似。另一个重要的合约是 UniswapV2Library ，它是一组实现重要计算的辅助函数。
+
+Q：
+A：
+问GPT：主要原因是仅依赖ERC20余额会导致价格操纵的可能性：想象一下，有人向一个池子发送大量代币，进行有利的交换，最后将其兑现。为了避免这种情况，我们需要在我们这一方追踪池子的储备，并且需要控制它们何时更新。
+
+Q：对于初始的LP金额，Uniswap V2 为什么最终采用了存入金额的几何平均值 `Math.sqrt(amount0 * amount1)` ？
+A：这个决定的主要好处是，这样的公式确保了初始流动性比率不会影响资金池份额的价值。（假设Alice和Bob都想在Uniswap创建一个新的流动性池。Alice选择将100个token0和200个token1存入，Bob选择将200个token0和400个token1存入。尽管Bob投入的金额是Alice的两倍，但是他们选择的token0到token1的比率是相同的，所以无论Alice还是Bob，他们获得的流动性代币的数量是由存入的token0和token1的几何平均数决定的。如果Alice和Bob都在相同的价格（token0/token1的比率）下向池中添加流动性，那么他们得到的每个流动性代币代表的池中份额的价值将会是相同的。无论他们各自投入了多少资金，只要他们的投入比率相同，他们的投入都将有相同的价值。这就是为什么我们说这种设计可以确保初始流动性比率不会影响资金池份额的价值。）
+
+Q：uniswap 在使用 `liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY` 计算流动性时，为什么选择取较小的那个 ?
+A：1.在这段代码中，Uniswap是在计算用户提供流动性后，应该铸造多少流动性代币（liquidity）。这个数量应该与用户提供的资金和池子中已有的资金（储备）成比例。也就是说，如果用户投入的资金占了池子总资金的1%，那么他应该得到1%的流动性代币。2.存款金额与储备比率越接近，差异就越小。因此，如果存款金额的比率不同，LP金额也会不同，其中一个会比另一个大。如果我们选择较大的那个，那么我们将通过提供流动性来激励价格变动，这将导致价格操纵。如果我们选择较小的那个，我们将惩罚不平衡流动性的存款（流动性提供者将获得较少的LP代币）。很明显，选择较小的数字更有利，这就是Uniswap正在做的。（这是因为我们希望激励用户提供平衡的流动性。也就是说，用户提供的两种代币的数量应该与池子中两种代币的数量保持相同的比例。如果用户提供的两种代币的比例与池子的比例不同，那么他将会得到较少的流动性代币。这种设计可以防止用户通过大量提供一种代币来操纵价格。）3.假设池子中有100个代币A和200个代币B，如果用户提供50个代币A和50个代币B，那么他提供的代币A和代币B的比例（1:1）就与池子中的比例（1:2）不同。在这种情况下，用户提供的代币A相对过多，所以他将会得到较少的流动性代币。
+
