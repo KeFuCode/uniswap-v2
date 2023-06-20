@@ -16,7 +16,7 @@ contract UniswapV2PairTest is Test {
 
         token0 = new ERC20Mintable("Token A", "TKNA");
         token1 = new ERC20Mintable("Token B", "TKNB");
-        pair = new UniswapV2Pair(address(token0), address(token1));
+        pair = new UniswapV2Pair();
 
         token0.mint(10 ether, address(this));
         token1.mint(10 ether, address(this));
@@ -38,7 +38,7 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 1 ether - 1_000);
         assertReserves(1 ether, 1 ether);
@@ -49,12 +49,12 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
         token0.transfer(address(pair), 2 ether);
         token1.transfer(address(pair), 2 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 3 ether - 1_000);
         assertReserves(3 ether, 3 ether);
@@ -65,7 +65,7 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 1 ether - 1_000);
         assertReserves(1 ether, 1 ether);
@@ -73,7 +73,7 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 2 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
         assertEq(pair.balanceOf(address(this)), 2 ether - 1_000);
         assertReserves(3 ether, 2 ether);
     }
@@ -82,9 +82,9 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
-        pair.burn();
+        pair.burn(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1000, 1000);
@@ -96,14 +96,14 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
         token0.transfer(address(pair), 2 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
-        pair.burn();
+        pair.burn(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1500, 1000);
@@ -128,9 +128,9 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 2 ether);
         token1.transfer(address(pair), 1 ether);
 
-        pair.mint();
+        pair.mint(msg.sender);
 
-        pair.burn();
+        pair.burn(msg.sender);
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1.5 ether, 1 ether);
@@ -151,6 +151,6 @@ contract TestUser {
         ERC20(token0Address_).transfer(pairAddress_, amount0_);
         ERC20(token1Address_).transfer(pairAddress_, amount_1);
 
-        UniswapV2Pair(pairAddress_).mint();
+        UniswapV2Pair(pairAddress_).mint(msg.sender);
     }
 }

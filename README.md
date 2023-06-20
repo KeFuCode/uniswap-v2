@@ -4,6 +4,7 @@
 
 1. 没有流动性就无法进行交易。
 2. 图书馆合约是一个图书馆（不是故意的😬）。(谐音梗)
+3. 价格是什么？它是你用一单位的另一样东西交换得到的一样东西的数量。在交易中，价格在某种程度上是一个中间实体：重要的是你拥有的代币数量和你得到的代币数量。在一个不断进行产品交换的过程中，价格只是储备之间的关系。
 
 ## Q&A
 
@@ -121,6 +122,31 @@ Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import
 A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入UniswapV2Pair.sol文件中的UniswapV2Pair合约。使用这种方式，只能访问到UniswapV2Pair这个合约，其他在UniswapV2Pair.sol文件中定义的合约或者库将不能访问。这种方式常常用于只需要文件中部分合约或者库的场景，避免全局污染。2.`import "./UniswapV2Pair.sol`：这个语句导入UniswapV2Pair.sol文件的所有内容。使用这种方式，UniswapV2Pair.sol文件中定义的所有合约或者库都可以访问。这种方式适用于需要文件中全部合约或者库的场景。（使用`import "./UniswapV2Pair.sol"`，会出现异常：`error InsufficientLiquidity();` ，Identifier already declared.）
 
 ### Section 4
+
+Q：`swapExactTokensForTokens` 和 `swapTokensForExactTokens` 有什么区别？
+A：`swapExactTokensForTokens` 当我们拥有确定数量的代币，并希望以计算出的数量进行交换（输入已知，输出未知）。 `swapTokensForExactTokens` 反向交换，将未知数量的输入代币交换为精确数量的输出代币。
+
+Q：在使用 `Δx= (y−Δy)r / xΔy` ​计算结果后，为什么需要加上 1 ？  
+```solidity
+    function getAmountIn(
+        uint256 amountOut,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public view returns (uint256) {
+        if (amountOut == 0) {
+            revert InsufficientAmount();
+        }
+        if (reserveIn == 0 || reserveOut == 0) {
+            revert InsufficientLiquidity();
+        }
+
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+
+        return (numerator / denominator) + 1;
+    }
+```
+A：在Solidity中，除法是整数除法，结果会向下取整，也就是说结果会被截断。在输入金额计算中，我们希望确保计算出的金额能够得到所需的 amountOut 。如果结果被截断，输出金额将会稍微偏小。
 
 Q：
 A：

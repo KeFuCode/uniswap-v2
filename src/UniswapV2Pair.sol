@@ -16,6 +16,7 @@ error InsufficientOutputAmount();
 error InsufficientLiquidity();
 error InvalidK();
 error BalanceOverflow();
+error AlreadyInitialized();
 
 contract UniswapV2Pair is ERC20, Math {
     using UQ112x112 for uint224;
@@ -33,19 +34,22 @@ contract UniswapV2Pair is ERC20, Math {
     uint256 public price1CumulativeLast;
 
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-    event Burn(address indexed sender, uint256 amount0, uint256 amount1);
+    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Swap(address indexed sender, uint256 amount0Out, uint256 amount1Out, address indexed to);
     event Sync(uint112 reserve0, uint112 reserve1);
 
-    constructor(
-        address _token0,
-        address _token1
-    ) ERC20("UniswapV2 Pair", "UNIV2", 18) {
-        token0 = _token0;
-        token1 = _token1;
+    constructor() ERC20("UniswapV2 Pair", "UNIV2", 18) {}
+
+    function initialize(address token0_, address token1_) public {
+        if (token0_ != address(0) || token1_ != address(0)) {
+            revert AlreadyInitialized();
+        }
+
+        token0 = token0_;
+        token1 = token1_;
     }
 
-    function mint() public {
+    function mint(address to) public {
         (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
@@ -68,14 +72,14 @@ contract UniswapV2Pair is ERC20, Math {
 
         if (liquidity <= 0) revert InsufficientLiquidityMinted();
 
-        _mint(msg.sender, liquidity);
+        _mint(to, liquidity);
 
         _update(balance0, balance1, reserve0_, reserve1_);
 
-        emit Mint(msg.sender, amount0, amount1);
+        emit Mint(to, amount0, amount1);
     }
 
-    function burn() public returns (uint256 amount0, uint256 amount1) {
+    function burn(address to) public returns (uint256 amount0, uint256 amount1) {
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
         uint256 liquidity = balanceOf[address(this)];
@@ -87,8 +91,8 @@ contract UniswapV2Pair is ERC20, Math {
 
         _burn(address(this), liquidity);
 
-        _safeTransfer(token0, msg.sender, amount0);
-        _safeTransfer(token1, msg.sender, amount1);
+        _safeTransfer(token0, to, amount0);
+        _safeTransfer(token1, to, amount1);
 
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
@@ -96,7 +100,7 @@ contract UniswapV2Pair is ERC20, Math {
         (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
         _update(balance0, balance1, reserve0_, reserve1_);
 
-        emit Burn(msg.sender, amount0, amount1);
+        emit Burn(msg.sender, amount0, amount1, to);
     }
 
     function swap(uint256 amount0Out, uint256 amount1Out, address to) public {
