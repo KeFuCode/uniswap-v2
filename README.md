@@ -35,7 +35,7 @@ A：1.在 Solidity 中声明为 public 的状态变量，不能直接从外部�
 Q：为什么 `swap(uint256 amount0Out, uint256 amount1Out, address to)` 中设置 amount0Out 和 amount1Out 两个入参？  
 A：该函数接受两个输出金额，每个代币对应一个金额。这些金额是调用者想要用他们的代币交换得到的。为什么要这样做呢？因为我们甚至不想强制交换的方向：调用者可以指定其中一个金额或两个金额，我们将只执行必要的检查。
 
-Q：在uniswap v2中，为什么不使用 `token0.transfer(to, amount0Out)` ，而使用了 `_safeTransfer(token0, to, amount0Out)` ？  
+Q：在uniswap v2中，为什么不使用ERC20接口的 `token0.transfer(to, amount0Out)` ，而使用了 `_safeTransfer(token0, to, amount0Out)` ？  
 ```solidity
 function _safeTransfer(
     address token,
@@ -47,7 +47,7 @@ function _safeTransfer(
     if (!success || (data.length != 0 && !abi.decode(data, (bool)))) revert TransferFailed();
 }
 ```  
-A：1._safeTransfer函数是一个更安全的资产转移方式，因为它使用底层的call方法来调用transfer函数，而不是直接调用。这种方式允许你更详细地检查transfer函数调用是否成功，包括检查返回的布尔值和数据。2.直接调用ERC20的transfer函数可能会存在问题。虽然ERC20标准规定transfer函数在失败时应该返回false，但许多早期的ERC20代币并没有遵守这个规定，而是在失败时直接抛出错误。这可能会导致直接调用transfer函数的合约无法正确处理这些代币的失败转账。3.使用call方法调用transfer函数，并检查其返回的布尔值和数据，可以更好地处理这种情况，提高合约的健壮性。如果转账失败，不论是返回false还是抛出错误，都可以被正确捕获和处理。
+A：1.在配对合约中，在进行代币转账时，我们总是希望确保转账成功。根据ERC20标准， transfer 方法必须返回一个布尔值： true 表示成功， fails 表示失败。大多数代币都正确实现了这一点，但有些代币没有——它们只是返回了空值。当然，我们无法检查代币合约的实现，并不能确定代币转账是否确实完成，但至少我们可以检查转账结果。如果转账失败，我们不希望继续进行。2. call -- 这是一个低级函数，它可以让我们对合约调用有更精细的控制。在这个特定的情况下，它允许我们无论 transfer 方法是否返回结果，都能得到一个转账的结果。
 
 Q：在 `swap(uint256 amount0Out, uint256 amount1Out, address to)` 中，转账前为什么要进行条件检查？  
 ```solidity
@@ -69,11 +69,15 @@ Q：Uniswap V2为什么使用 `UQ112.112` 计算边际价格？
 A：Solidity不支持浮点数除法，计算这样的价格可能会很棘手：例如，如果两个储备的比率为 2/3 ，那么价格就是0。在计算边际价格时，我们需要增加精度，而Uniswap V2使用UQ112.112数字来实现这一点。UQ112.112基本上是一个数字，其中112位用于小数部分，112位用于整数部分。
 
 Q：为什么选择112位进行运算？（为什么变量使用类型 uint112 ）
-A：
+A：气体优化。每个EVM操作都会消耗一定数量的gas。简单的操作，比如算术运算，消耗的gas很少，但有些操作消耗的gas很多。其中最昂贵的操作是 SSTORE -将值保存到合约存储中。它的对应操作 SLOAD 也很昂贵。因此，如果智能合约开发者尝试优化其合约的gas消耗，对用户来说是有益的。使用 uint112 来保留变量正是为了达到这个目的。
 
 Q：为什么在价格计算之前它们被乘以 2**112 ？
-A：储备以UQ112.112数字的整数部分形式存储。
-GPT：不理解
+A：`price0CumulativeLast += uint256(UQ112x112.encode(reserve1_).uqdiv(reserve0_)) * timeElapsed` ，储备以UQ112.112数字的整数部分形式存储。UQ112x112.encode 将 uint112 值乘以 2**112 ，使其成为 uint224 值。然后，它被另一个储备除以并乘以 timeElapsed 。结果被加到当前存储的值上，这使其累积。
+GPT：举例子帮助理解
 
-Q：
-A：
+Q：计算边际价格时，为什么使用 unchecked 块？
+A：在计算 timeElapsed 和累积价格时，我们使用 unchecked 块。这似乎对合约的安全性不利，但是预计时间戳和累积价格会溢出：当它们中的任何一个溢出时，不会发生任何不良情况。我们希望它们在溢出时不会抛出错误，以便能够正常运行。
+GPT：为什么发生溢出不会影响合约？
+
+Q：为什么需要 SafeMath 库？
+A：直到版本0.8.0之前，Solidity没有检查溢出和下溢，于是开发者们想出了一个库：SafeMath。如今，由于Solidity现在在检测到溢出或下溢时会抛出异常，所以这个库已经不再需要了。Solidity 0.8.0还引入了 unchecked 块，顾名思义，它在其范围内禁用了溢出/下溢检测。

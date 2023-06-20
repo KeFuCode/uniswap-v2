@@ -3,6 +3,7 @@ pragma solidity ^0.8.10;
 
 import "solmate/tokens/ERC20.sol";
 import "./libraries/Math.sol";
+import "./libraries/UQ112x112.sol";
 
 interface IERC20 {
     function balanceOf(address) external returns (uint256);
@@ -16,6 +17,8 @@ error InsufficientLiquidity();
 error InvalidK();
 
 contract UniswapV2Pair is ERC20, Math {
+    using UQ112x112 for uint224;
+
     uint256 constant MINIMUM_LIQUIDITY = 1_000;
 
     address public token0;
@@ -23,6 +26,10 @@ contract UniswapV2Pair is ERC20, Math {
 
     uint112 private reserve0;
     uint112 private reserve1;
+    uint32 private blockTimestampLast;
+
+    uint256 public price0CumulativeLast;
+    uint256 public price1CumulativeLast;
 
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1);
@@ -119,6 +126,21 @@ contract UniswapV2Pair is ERC20, Math {
         reserve1 = uint112(balance1);
 
         emit Sync(reserve0, reserve1);
+    }
+
+    function _update(uint256 balance0, uint256 balance1, uint112 reserve0_, uint112 reserve1_) private {
+        unchecked {
+            uint32 timeElapsed = uint32(block.timestamp) - blockTimestampLast;
+
+            if (timeElapsed > 0 && reserve0_ > 0 && reserve1_ > 0) {
+                price0CumulativeLast += uint256(UQ112x112.encode(reserve1_).uqdiv(reserve0_)) * timeElapsed;
+                price1CumulativeLast += uint256(UQ112x112.encode(reserve0_).uqdiv(reserve1_)) * timeElapsed;
+            }
+        }
+
+        reserve0 = uint112(balance0);
+        reserve1 = uint112(balance1);
+        blockTimestampLast = uint32(block.timestamp);
     }
 
     function _safeTransfer(
