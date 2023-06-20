@@ -3,6 +3,7 @@
 ## IDEAs
 
 1. 没有流动性就无法进行交易。
+2. 图书馆合约是一个图书馆（不是故意的😬）。(谐音梗)
 
 ## Q&A
 
@@ -87,5 +88,34 @@ A：直到版本0.8.0之前，Solidity没有检查溢出和下溢，于是开发
 Q：为什么需要工厂合约？  
 A：1.工厂合约是所有已部署的配对合约的注册表。这个合约是必要的，因为我们**不希望有相同代币的配对，以免流动性分散到多个相同的配对中**。该合约还简化了配对合约的部署过程：不需要手动部署配对合约，只需在工厂合约中调用一个方法即可。2.Uniswap团队只部署了一个工厂合约，该合约作为Uniswap交易对的官方注册表。这在交易对的发现方面也非常有用：我们可以查询合约以通过代币地址找到一个交易对。此外，可以扫描合约事件的历史记录以找到所有部署的交易对。当然，我们也可以手动部署我们的交易对，而不将其注册到工厂合约中。
 
-Q：
-A：
+Q：UniswapV2 中 Router 合约的作用是什么？  
+A：Router 合约是一个高级合约，它作为大多数用户应用程序的入口。该合约使创建交易对、添加和移除流动性、计算所有可能的交换变化的价格以及执行实际交易变得更加简单。 Router 与通过工厂合约部署的所有交易对一起工作，它是一个通用合约。
+
+Q：UniswapV2 中 Library 合约的作用是什么？  
+A：该合约实现了所有基本和核心功能，其中大部分是交换金额的计算。
+
+Q：UniswapV2 中 Router 合约的 addLiquidity 中的各个参数分别什么作用？  
+A：1.使用 tokenA 和 tokenB 来查找（或创建）我们想要增加流动性的交易对。2.amountADesired 和 amountBDesired 是我们想要存入该对的金额。这些是上限。3.amountAMin 和 amountBMin 是我们希望存入的最低金额。记住，当我们存入不平衡的流动性时， Pair 合约总是发行较少的LP代币（我们在第一部分中讨论过这个问题）。因此， min 参数允许我们控制我们愿意损失多少流动性。4.to 地址是接收LP代币的地址。
+```solidity
+function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to
+) public returns (uint256 amountA, uint256 amountB, uint256 liquidity) {}
+```
+
+Q：Soldity 中 Library 合约和常见合约什么区别？
+A：在Solidity中，Library是一个无状态合约（即它没有可变状态），它实现了一组可以被其他合约使用的函数，这是Library的主要目的。与合约不同，Library没有状态：它们的函数通过DELEGATECALL在调用者的状态下执行。但是，与合约一样，Library必须部署才能使用。幸运的是，Forge使我们的生活更轻松，因为它支持自动链接Library（我们不需要在测试中部署Library）。
+
+Q：UniswapV2Library 和 UniswapV2Pair 中的 getReserve 有什么区别？
+A：UniswapV2Library 是一个高级功能，它可以获取任何交易对的储备金（不要将其与交易对合约中的那个混淆，后者返回特定交易对的储备金）。
+
+Q：UniswapV2Library 中 pairFor 如何得到 pair 的地址？
+A：EIP-1014
+
+Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import "./UniswapV2Pair.sol` 有什么区别？
+A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入UniswapV2Pair.sol文件中的UniswapV2Pair合约。使用这种方式，只能访问到UniswapV2Pair这个合约，其他在UniswapV2Pair.sol文件中定义的合约或者库将不能访问。这种方式常常用于只需要文件中部分合约或者库的场景，避免全局污染。2.`import "./UniswapV2Pair.sol`：这个语句导入UniswapV2Pair.sol文件的所有内容。使用这种方式，UniswapV2Pair.sol文件中定义的所有合约或者库都可以访问。这种方式适用于需要文件中全部合约或者库的场景。（使用`import "./UniswapV2Pair.sol"`，会出现异常：`error InsufficientLiquidity();` ，Identifier already declared.）
