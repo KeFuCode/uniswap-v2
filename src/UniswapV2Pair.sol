@@ -15,6 +15,7 @@ error TransferFailed();
 error InsufficientOutputAmount();
 error InsufficientLiquidity();
 error InvalidK();
+error BalanceOverflow();
 
 contract UniswapV2Pair is ERC20, Math {
     using UQ112x112 for uint224;
@@ -69,7 +70,7 @@ contract UniswapV2Pair is ERC20, Math {
 
         _mint(msg.sender, liquidity);
 
-        _update(balance0, balance1);
+        _update(balance0, balance1, reserve0_, reserve1_);
 
         emit Mint(msg.sender, amount0, amount1);
     }
@@ -92,7 +93,8 @@ contract UniswapV2Pair is ERC20, Math {
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
-        _update(balance0, balance1);
+        (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+        _update(balance0, balance1, reserve0_, reserve1_);
 
         emit Burn(msg.sender, amount0, amount1);
     }
@@ -109,7 +111,7 @@ contract UniswapV2Pair is ERC20, Math {
 
         if (balance0 * balance1 < uint256(reserve0_) * uint256(reserve1_)) revert InvalidK();
     
-        _update(balance0, balance1);
+        _update(balance0, balance1, reserve0_, reserve1_);
 
         if (amount0Out > 0) _safeTransfer(token0, to, amount0Out);
         if (amount1Out > 0) _safeTransfer(token1, to, amount1Out);
@@ -121,14 +123,9 @@ contract UniswapV2Pair is ERC20, Math {
         return (reserve0, reserve1, 0);
     }
 
-    function _update(uint256 balance0, uint256 balance1) private {
-        reserve0 = uint112(balance0);
-        reserve1 = uint112(balance1);
-
-        emit Sync(reserve0, reserve1);
-    }
-
     function _update(uint256 balance0, uint256 balance1, uint112 reserve0_, uint112 reserve1_) private {
+        if (balance0 > type(uint112).max || balance1 > type(uint112).max) revert BalanceOverflow();
+
         unchecked {
             uint32 timeElapsed = uint32(block.timestamp) - blockTimestampLast;
 
@@ -141,6 +138,8 @@ contract UniswapV2Pair is ERC20, Math {
         reserve0 = uint112(balance0);
         reserve1 = uint112(balance1);
         blockTimestampLast = uint32(block.timestamp);
+
+        emit Sync(reserve0, reserve1);
     }
 
     function _safeTransfer(
