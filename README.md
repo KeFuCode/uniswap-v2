@@ -108,14 +108,19 @@ function addLiquidity(
 ) public returns (uint256 amountA, uint256 amountB, uint256 liquidity) {}
 ```
 
-Q：Soldity 中 Library 合约和常见合约什么区别？
+Q：Soldity 中 Library 合约和常见合约什么区别？  
 A：在Solidity中，Library是一个无状态合约（即它没有可变状态），它实现了一组可以被其他合约使用的函数，这是Library的主要目的。与合约不同，Library没有状态：它们的函数通过DELEGATECALL在调用者的状态下执行。但是，与合约一样，Library必须部署才能使用。幸运的是，Forge使我们的生活更轻松，因为它支持自动链接Library（我们不需要在测试中部署Library）。
 
-Q：UniswapV2Library 和 UniswapV2Pair 中的 getReserve 有什么区别？
+Q：UniswapV2Library 和 UniswapV2Pair 中的 getReserve 有什么区别？  
 A：UniswapV2Library 是一个高级功能，它可以获取任何交易对的储备金（不要将其与交易对合约中的那个混淆，后者返回特定交易对的储备金）。
 
-Q：UniswapV2Library 中 pairFor 如何得到 pair 的地址？
+Q：UniswapV2Library 中 pairFor 如何得到 pair 的地址？  
 A：EIP-1014
 
-Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import "./UniswapV2Pair.sol` 有什么区别？
+Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import "./UniswapV2Pair.sol` 有什么区别？  
 A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入UniswapV2Pair.sol文件中的UniswapV2Pair合约。使用这种方式，只能访问到UniswapV2Pair这个合约，其他在UniswapV2Pair.sol文件中定义的合约或者库将不能访问。这种方式常常用于只需要文件中部分合约或者库的场景，避免全局污染。2.`import "./UniswapV2Pair.sol`：这个语句导入UniswapV2Pair.sol文件的所有内容。使用这种方式，UniswapV2Pair.sol文件中定义的所有合约或者库都可以访问。这种方式适用于需要文件中全部合约或者库的场景。（使用`import "./UniswapV2Pair.sol"`，会出现异常：`error InsufficientLiquidity();` ，Identifier already declared.）
+
+### Section 4
+
+Q：
+A：
