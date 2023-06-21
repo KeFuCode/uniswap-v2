@@ -116,7 +116,7 @@ Q：UniswapV2Library 和 UniswapV2Pair 中的 getReserve 有什么区别？
 A：UniswapV2Library 是一个高级功能，它可以获取任何交易对的储备金（不要将其与交易对合约中的那个混淆，后者返回特定交易对的储备金）。
 
 Q：UniswapV2Library 中 pairFor 如何得到 pair 的地址？  
-A：EIP-1014
+A：EIP-1014 。地址计算：`keccak256( 0xff ++ address ++ salt ++ keccak256(init_code))[12:]` 。
 
 Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import "./UniswapV2Pair.sol` 有什么区别？  
 A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入UniswapV2Pair.sol文件中的UniswapV2Pair合约。使用这种方式，只能访问到UniswapV2Pair这个合约，其他在UniswapV2Pair.sol文件中定义的合约或者库将不能访问。这种方式常常用于只需要文件中部分合约或者库的场景，避免全局污染。2.`import "./UniswapV2Pair.sol`：这个语句导入UniswapV2Pair.sol文件的所有内容。使用这种方式，UniswapV2Pair.sol文件中定义的所有合约或者库都可以访问。这种方式适用于需要文件中全部合约或者库的场景。（使用`import "./UniswapV2Pair.sol"`，会出现异常：`error InsufficientLiquidity();` ，Identifier already declared.）
@@ -153,7 +153,26 @@ Q：下面这部分在 UniswapV2Pair 的 `swap(uint256 amount0Out, uint256 amoun
         uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
         uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
 ```
-A：
+A：这两行代码的目的是计算用户为了得到amount0Out和amount1Out，需要提供多少的amount0In和amount1In。每种token的准备金余额（即reserve0_和reserve1_），balance0和balance1表示交易后合约中每种token的余额。amount0Out和amount1Out是用户希望从交易中得到的token0和token1的数量。balance0 > reserve0_ - amount0Out和balance1 > reserve1_ - amount1Out的判断语句是检查交易后合约的余额是否超过了交易前的准备金余额减去输出量，如果超过了，那么输入量就等于交易后的余额减去（交易前的准备金余额减去输出量）；否则，输入量为0。（假设交易前，token0和token1的储备分别为1000。然后，一个用户希望通过交易获得100个token0（即amount0Out为100），并愿意提供一定数量的token1作为交换。那么在交易后，合约中token0的储备将减少到900，如果此时token0的余额（balance0）为910，那么用户实际提供的token0的数量（即amount0In）就为910 - (1000 - 100) = 10。）
 
-Q：为什么 `if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data)` 实现了闪电贷功能？
-A：
+Q：为什么_update(balance0, balance1, reserve0_, reserve1_); 更新储备的时候，不使用balance0Adjusted和balance1Adjusted，此次是bug吗？
+```solidity
+uint256 balance0Adjusted = (balance0 * 1000) - (amount0In * 3);
+uint256 balance1Adjusted = (balance1 * 1000) - (amount1In * 3);
+
+if (balance0Adjusted * balance1Adjusted < uint256(reserve0_) * uint256(reserve1_) * 1000**2) revert InvalidK();
+    
+_update(balance0, balance1, reserve0_, reserve1_);
+```
+A：这并不是一个 bug。1.在 Uniswap 中，每一次交易都会导致两种代币的储备量（reserves）发生变化。这些储备量的乘积，也就是所谓的 K 值，在交易前后应该保持恒定，这就是 Uniswap 的“恒定产品公式”（Constant Product Formula）。2.balance0Adjusted 和 balance1Adjusted 是用于检查交易是否符合滑点要求的，它们并不代表交易完成后的实际储备量。实际的储备量应该是交易完成后的余额，即 balance0 和 balance1。3.在调用 _update 函数更新储备量时，应该使用 balance0 和 balance1 而不是 balance0Adjusted 和 balance1Adjusted。这样才能保证储备量的更新反映了交易后的实际状态。4.滑点调整的 balance0Adjusted 和 balance1Adjusted 只是用于在交易前检查交易是否会导致价格变动超过允许的滑点。如果滑点过大，该交易会被拒绝，以防止恶意用户通过大量交易操纵价格。这是 Uniswap 的一种保护机制，但并不影响实际的储备量更新。
+
+Q：为什么 `if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data)` 实现了闪电贷功能？  
+A：这行代码位于借款和检查还款之间，借助了区块链交易的原子性，实现了闪电贷功能。先给用户打款，接着调用 IUniswapV2Callee 接口的 uniswapV2Call 函数，这个函数是由用户自己实现的，用户可以在这个函数中执行任意操作，包括还款。uniswapV2Call 不在意用户借款之后的操作，只需要用户在 uniswapV2Call 中实现还款操作，还款金额能够通过下方的条件检查即可。如果还款金额不满足要求，交易会被回滚，用户的借款也不会被执行。 
+```solidity
+        if (amount0Out > 0) _safeTransfer(token0, to, amount0Out);
+        if (amount1Out > 0) _safeTransfer(token1, to, amount1Out);
+        if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));     
+```
