@@ -176,3 +176,66 @@ if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, 
 uint256 balance0 = IERC20(token0).balanceOf(address(this));
 uint256 balance1 = IERC20(token1).balanceOf(address(this));     
 ```
+
+Q：FlashLoan 的调用过程是什么？
+A：参考过程如下。在 zuniswapV2Call 中，用户可以进行任何操作，只需要保证最终打款（`ERC20(tokenAddress).transfer(msg.sender, balance)`）满足 Pair 中 Swap 的条件即可。
+```solidity
+contract Flashloaner {
+    error InsufficientFlashLoanAmount();
+
+    uint256 expectedLoanAmount;
+
+    function flashloan(
+        address pairAddress,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address tokenAddress
+    ) public {
+        if (amount0Out > 0) {
+            expectedLoanAmount = amount0Out;
+        }
+        if (amount1Out > 0) {
+            expectedLoanAmount = amount1Out;
+        }
+
+        ZuniswapV2Pair(pairAddress).swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            abi.encode(tokenAddress)
+        );
+    }
+
+    function zuniswapV2Call(
+        address sender,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        bytes calldata data
+    ) public {
+        address tokenAddress = abi.decode(data, (address));
+        uint256 balance = ERC20(tokenAddress).balanceOf(address(this));
+
+        if (balance < expectedLoanAmount) revert InsufficientFlashLoanAmount();
+
+        ERC20(tokenAddress).transfer(msg.sender, balance);
+    }
+}
+
+function testFlashloan() public {
+    token0.transfer(address(pair), 1 ether);
+    token1.transfer(address(pair), 2 ether);
+    pair.mint(address(this));
+
+    uint256 flashloanAmount = 0.1 ether;
+    uint256 flashloanFee = (flashloanAmount * 1000) / 997 - flashloanAmount + 1;
+
+    Flashloaner fl = new Flashloaner();
+
+    token1.transfer(address(fl), flashloanFee);
+
+    fl.flashloan(address(pair), 0, flashloanAmount, address(token1));
+
+    assertEq(token1.balanceOf(address(fl)), 0);
+    assertEq(token1.balanceOf(address(pair)), 2 ether + flashloanFee);
+}
+```
