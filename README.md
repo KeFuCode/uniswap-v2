@@ -154,3 +154,6 @@ Q：下面这部分在 UniswapV2Pair 的 `swap(uint256 amount0Out, uint256 amoun
         uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
 ```
 A：
+
+Q：为什么 `if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data)` 实现了闪电贷功能？
+A：
