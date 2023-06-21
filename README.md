@@ -3,6 +3,7 @@
 ## IDEAs
 
 1. 没有流动性就无法进行交易。
+2. 图书馆合约是一个图书馆（不是故意的😬）。(谐音梗)
 
 ## Q&A
 
@@ -30,7 +31,7 @@ A：1.在这段代码中，Uniswap是在计算用户提供流动性后，应该�
 Q：对于 `uint256 public totalSupply` ，在 UniswapV2Pair 中，直接使用 `totalSupply` ，在 UniswapV2PairTest 中，为什么需要使用 `totalSupply()` ？  
 A：1.在 Solidity 中声明为 public 的状态变量，不能直接从外部访问它们的值，因为外部调用必须通过网络和Ethereum虚拟机(EVM)进行。2.当你从另一个合约或从外部访问一个状态变量时，必须通过其对应的getter函数来进行。Solidity为每个public状态变量自动创建一个公共getter函数。3.当你在同一个合约内部访问一个状态变量时，可以直接访问其值，因为这不涉及任何网络通信或EVM的操作。
 
-## Section 2
+### Section 2
 
 Q：为什么 `swap(uint256 amount0Out, uint256 amount1Out, address to)` 中设置 amount0Out 和 amount1Out 两个入参？  
 A：该函数接受两个输出金额，每个代币对应一个金额。这些金额是调用者想要用他们的代币交换得到的。为什么要这样做呢？因为我们甚至不想强制交换的方向：调用者可以指定其中一个金额或两个金额，我们将只执行必要的检查。
@@ -59,25 +60,62 @@ A：1.amount0Out和amount1Out是函数参数，表示从资金池中取出的两
 Q：什么是预言机？  
 A：1.将区块链与离链服务连接起来，以便从智能合约中查询现实世界的数据，已经存在了相当长的时间。Chainlink是最大的预言机网络之一，它于2017年创建，如今已成为许多DeFi应用的关键组成部分。2.Uniswap是一个链上应用，同时也可以作为一个预言机。每个经常被交易者使用的Uniswap交易对合约也吸引了套利者，他们通过减小交易所之间的价格差异来赚钱。套利者使得Uniswap的价格尽可能接近中心化交易所的价格，这也可以看作是将中心化交易所的价格输入到区块链中。
 
-Q：Uniswap V2中如何实现预言机？
+Q：Uniswap V2中如何实现预言机？  
 A：1.在Uniswap V2中，价格预言机提供的价格类型被称为时间加权平均价格，或者简称为TWAP。它基本上允许在两个时间点之间获得平均价格。为了实现这一点，合约会存储累积价格：在每次交换之前，它会计算当前的边际价格（不包括费用），将其乘以自上次交换以来经过的秒数，并将该数字添加到之前的价格上。2.边际价格 —— 这只是两个储备的关系 `price0 = reserve1 / reserve0, price1 = reserve0 / reserve1`
 
-Q：Uniswap V2中如何实现预言机时为什么使用边际价格？
+Q：Uniswap V2中如何实现预言机时为什么使用边际价格？  
 A：对于价格预言机功能，Uniswap V2使用边际价格，这些价格不包括滑点和交换费用，也不依赖于交换数量。
 
-Q：Uniswap V2为什么使用 `UQ112.112` 计算边际价格？
+Q：Uniswap V2为什么使用 `UQ112.112` 计算边际价格？  
 A：Solidity不支持浮点数除法，计算这样的价格可能会很棘手：例如，如果两个储备的比率为 2/3 ，那么价格就是0。在计算边际价格时，我们需要增加精度，而Uniswap V2使用UQ112.112数字来实现这一点。UQ112.112基本上是一个数字，其中112位用于小数部分，112位用于整数部分。
 
 Q：为什么选择112位进行运算？（为什么变量使用类型 uint112 ）
 A：气体优化。每个EVM操作都会消耗一定数量的gas。简单的操作，比如算术运算，消耗的gas很少，但有些操作消耗的gas很多。其中最昂贵的操作是 SSTORE -将值保存到合约存储中。它的对应操作 SLOAD 也很昂贵。因此，如果智能合约开发者尝试优化其合约的gas消耗，对用户来说是有益的。使用 uint112 来保留变量正是为了达到这个目的。
 
-Q：为什么在价格计算之前它们被乘以 2**112 ？
+Q：为什么在价格计算之前它们被乘以 2**112 ？  
 A：`price0CumulativeLast += uint256(UQ112x112.encode(reserve1_).uqdiv(reserve0_)) * timeElapsed` ，储备以UQ112.112数字的整数部分形式存储。UQ112x112.encode 将 uint112 值乘以 2**112 ，使其成为 uint224 值。然后，它被另一个储备除以并乘以 timeElapsed 。结果被加到当前存储的值上，这使其累积。
 GPT：举例子帮助理解
 
-Q：计算边际价格时，为什么使用 unchecked 块？
+Q：计算边际价格时，为什么使用 unchecked 块？  
 A：在计算 timeElapsed 和累积价格时，我们使用 unchecked 块。这似乎对合约的安全性不利，但是预计时间戳和累积价格会溢出：当它们中的任何一个溢出时，不会发生任何不良情况。我们希望它们在溢出时不会抛出错误，以便能够正常运行。
 GPT：为什么发生溢出不会影响合约？
 
-Q：为什么需要 SafeMath 库？
+Q：为什么需要 SafeMath 库？  
 A：直到版本0.8.0之前，Solidity没有检查溢出和下溢，于是开发者们想出了一个库：SafeMath。如今，由于Solidity现在在检测到溢出或下溢时会抛出异常，所以这个库已经不再需要了。Solidity 0.8.0还引入了 unchecked 块，顾名思义，它在其范围内禁用了溢出/下溢检测。
+
+### Section 3
+
+Q：为什么需要工厂合约？  
+A：1.工厂合约是所有已部署的配对合约的注册表。这个合约是必要的，因为我们**不希望有相同代币的配对，以免流动性分散到多个相同的配对中**。该合约还简化了配对合约的部署过程：不需要手动部署配对合约，只需在工厂合约中调用一个方法即可。2.Uniswap团队只部署了一个工厂合约，该合约作为Uniswap交易对的官方注册表。这在交易对的发现方面也非常有用：我们可以查询合约以通过代币地址找到一个交易对。此外，可以扫描合约事件的历史记录以找到所有部署的交易对。当然，我们也可以手动部署我们的交易对，而不将其注册到工厂合约中。
+
+Q：UniswapV2 中 Router 合约的作用是什么？  
+A：Router 合约是一个高级合约，它作为大多数用户应用程序的入口。该合约使创建交易对、添加和移除流动性、计算所有可能的交换变化的价格以及执行实际交易变得更加简单。 Router 与通过工厂合约部署的所有交易对一起工作，它是一个通用合约。
+
+Q：UniswapV2 中 Library 合约的作用是什么？  
+A：该合约实现了所有基本和核心功能，其中大部分是交换金额的计算。
+
+Q：UniswapV2 中 Router 合约的 addLiquidity 中的各个参数分别什么作用？  
+A：1.使用 tokenA 和 tokenB 来查找（或创建）我们想要增加流动性的交易对。2.amountADesired 和 amountBDesired 是我们想要存入该对的金额。这些是上限。3.amountAMin 和 amountBMin 是我们希望存入的最低金额。记住，当我们存入不平衡的流动性时， Pair 合约总是发行较少的LP代币（我们在第一部分中讨论过这个问题）。因此， min 参数允许我们控制我们愿意损失多少流动性。4.to 地址是接收LP代币的地址。
+```solidity
+function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to
+) public returns (uint256 amountA, uint256 amountB, uint256 liquidity) {}
+```
+
+Q：Soldity 中 Library 合约和常见合约什么区别？
+A：在Solidity中，Library是一个无状态合约（即它没有可变状态），它实现了一组可以被其他合约使用的函数，这是Library的主要目的。与合约不同，Library没有状态：它们的函数通过DELEGATECALL在调用者的状态下执行。但是，与合约一样，Library必须部署才能使用。幸运的是，Forge使我们的生活更轻松，因为它支持自动链接Library（我们不需要在测试中部署Library）。
+
+Q：UniswapV2Library 和 UniswapV2Pair 中的 getReserve 有什么区别？
+A：UniswapV2Library 是一个高级功能，它可以获取任何交易对的储备金（不要将其与交易对合约中的那个混淆，后者返回特定交易对的储备金）。
+
+Q：UniswapV2Library 中 pairFor 如何得到 pair 的地址？
+A：EIP-1014
+
+Q：Solidity 中 `import {UniswapV2Pair} from "./UniswapV2Pair.sol"` 和 `import "./UniswapV2Pair.sol` 有什么区别？
+A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入UniswapV2Pair.sol文件中的UniswapV2Pair合约。使用这种方式，只能访问到UniswapV2Pair这个合约，其他在UniswapV2Pair.sol文件中定义的合约或者库将不能访问。这种方式常常用于只需要文件中部分合约或者库的场景，避免全局污染。2.`import "./UniswapV2Pair.sol`：这个语句导入UniswapV2Pair.sol文件的所有内容。使用这种方式，UniswapV2Pair.sol文件中定义的所有合约或者库都可以访问。这种方式适用于需要文件中全部合约或者库的场景。（使用`import "./UniswapV2Pair.sol"`，会出现异常：`error InsufficientLiquidity();` ，Identifier already declared.）
