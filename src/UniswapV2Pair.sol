@@ -35,10 +35,21 @@ contract UniswapV2Pair is ERC20, Math {
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
 
+    bool private isEntered;
+
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Swap(address indexed sender, uint256 amount0Out, uint256 amount1Out, address indexed to);
     event Sync(uint112 reserve0, uint112 reserve1);
+
+    modifier nonReentrant() {
+        require(!isEntered);
+        isEntered = true;
+
+        _;
+
+        isEntered = false;
+    }
 
     constructor() ERC20("UniswapV2 Pair", "UNIV2", 18) {}
 
@@ -105,7 +116,7 @@ contract UniswapV2Pair is ERC20, Math {
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
-    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) public {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) public nonReentrant() {
         if (amount0Out == 0 && amount1Out == 0) revert InsufficientOutputAmount();
     
         (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
