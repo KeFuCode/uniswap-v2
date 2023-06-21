@@ -123,7 +123,7 @@ A：1.`import {UniswapV2Pair} from "./UniswapV2Pair.sol"`：这个语句导入Un
 
 ### Section 4
 
-Q：`swapExactTokensForTokens` 和 `swapTokensForExactTokens` 有什么区别？
+Q：`swapExactTokensForTokens` 和 `swapTokensForExactTokens` 有什么区别？  
 A：`swapExactTokensForTokens` 当我们拥有确定数量的代币，并希望以计算出的数量进行交换（输入已知，输出未知）。 `swapTokensForExactTokens` 反向交换，将未知数量的输入代币交换为精确数量的输出代币。
 
 Q：在使用 `Δx= (y−Δy)r / xΔy` ​计算结果后，为什么需要加上 1 ？  
@@ -150,8 +150,8 @@ A：在Solidity中，除法是整数除法，结果会向下取整，也就是�
 
 Q：下面这部分在 UniswapV2Pair 的 `swap(uint256 amount0Out, uint256 amount1Out, address to)` 中的代码如何理解？
 ```solidity
-        uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
-        uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
+uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
+uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
 ```
 A：这两行代码的目的是计算用户为了得到amount0Out和amount1Out，需要提供多少的amount0In和amount1In。每种token的准备金余额（即reserve0_和reserve1_），balance0和balance1表示交易后合约中每种token的余额。amount0Out和amount1Out是用户希望从交易中得到的token0和token1的数量。balance0 > reserve0_ - amount0Out和balance1 > reserve1_ - amount1Out的判断语句是检查交易后合约的余额是否超过了交易前的准备金余额减去输出量，如果超过了，那么输入量就等于交易后的余额减去（交易前的准备金余额减去输出量）；否则，输入量为0。（假设交易前，token0和token1的储备分别为1000。然后，一个用户希望通过交易获得100个token0（即amount0Out为100），并愿意提供一定数量的token1作为交换。那么在交易后，合约中token0的储备将减少到900，如果此时token0的余额（balance0）为910，那么用户实际提供的token0的数量（即amount0In）就为910 - (1000 - 100) = 10。）
 
@@ -169,10 +169,10 @@ A：这并不是一个 bug。1.在 Uniswap 中，每一次交易都会导致两�
 Q：为什么 `if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data)` 实现了闪电贷功能？  
 A：这行代码位于借款和检查还款之间，借助了区块链交易的原子性，实现了闪电贷功能。先给用户打款，接着调用 IUniswapV2Callee 接口的 uniswapV2Call 函数，这个函数是由用户自己实现的，用户可以在这个函数中执行任意操作，包括还款。uniswapV2Call 不在意用户借款之后的操作，只需要用户在 uniswapV2Call 中实现还款操作，还款金额能够通过下方的条件检查即可。如果还款金额不满足要求，交易会被回滚，用户的借款也不会被执行。 
 ```solidity
-        if (amount0Out > 0) _safeTransfer(token0, to, amount0Out);
-        if (amount1Out > 0) _safeTransfer(token1, to, amount1Out);
-        if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+if (amount0Out > 0) _safeTransfer(token0, to, amount0Out);
+if (amount1Out > 0) _safeTransfer(token1, to, amount1Out);
+if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
 
-        uint256 balance0 = IERC20(token0).balanceOf(address(this));
-        uint256 balance1 = IERC20(token1).balanceOf(address(this));     
+uint256 balance0 = IERC20(token0).balanceOf(address(this));
+uint256 balance1 = IERC20(token1).balanceOf(address(this));     
 ```
