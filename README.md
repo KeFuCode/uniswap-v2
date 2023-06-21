@@ -148,5 +148,9 @@ Q：在使用 `Δx= (y−Δy)r / xΔy` ​计算结果后，为什么需要加�
 ```
 A：在Solidity中，除法是整数除法，结果会向下取整，也就是说结果会被截断。在输入金额计算中，我们希望确保计算出的金额能够得到所需的 amountOut 。如果结果被截断，输出金额将会稍微偏小。
 
-Q：
+Q：下面这部分在 UniswapV2Pair 的 `swap(uint256 amount0Out, uint256 amount1Out, address to)` 中的代码如何理解？
+```solidity
+        uint256 amount0In = balance0 > reserve0_ - amount0Out ? balance0 - (reserve0_ - amount0Out) : 0;
+        uint256 amount1In = balance1 > reserve1_ - amount1Out ? balance1 - (reserve1_ - amount1Out) : 0;
+```
 A：
